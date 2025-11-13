@@ -11,4 +11,9 @@ class Users extends BaseController
     {
         return view('user/landingPage');
     }
+
+    public function showMoodboard()
+    {
+        return view('user/moodboard');
+    }
 }
