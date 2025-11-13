@@ -7,6 +7,7 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'Users::showLandingPage');
 $routes->get('/moodboard', 'Users::showMoodboard');
+$routes->get('/roadmap', 'Users::showRoadmap');
 
 // Auth page
 $routes->get('/login', 'Auth::showLoginPage');
