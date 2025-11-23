@@ -1,83 +1,81 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
+namespace App\Controllers;
 
-<body class="bg-gray-100 font-sans">
+use App\Controllers\BaseController;
+use App\Models\UsersModel;
+use CodeIgniter\HTTP\ResponseInterface;
 
-    <!-- Sidebar -->
-    <aside class="fixed top-0 left-0 h-full w-64 bg-green-900 text-white flex flex-col shadow-xl">
-        <div class="p-6 text-2xl font-bold border-b border-green-700">
-            Batis Point Admin
-        </div>
+class Admin extends BaseController
+{
+    /**
+     * @return \CodeIgniter\HTTP\ResponseInterface|string|null Returns 403 error view if access denied, null if granted
+     */
+    private function checkAdminAccess()
+    {
+        // Get the session service - this manages user login state
+        $session = session();
 
-        <nav class="flex-1 p-4 space-y-3">
-            <a href="/admin/dashboard" class="block p-3 rounded-lg bg-green-700 hover:bg-green-600">Dashboard</a>
-            <a href="/admin/users" class="block p-3 rounded-lg hover:bg-green-700">Users</a>
-            <a href="/admin/inquiries" class="block p-3 rounded-lg hover:bg-green-700">Inquiries</a>
-            <a href="/admin/settings" class="block p-3 rounded-lg hover:bg-green-700">Settings</a>
-        </nav>
+        // User not authenticated - show 403 Forbidden error
+        if (!$session->has('user')) {
+            return $this->show403Error('Authentication required. Please log in to access admin pages.');
+        }
 
-        <form action="/logout" method="post" class="p-4 border-t border-green-700">
-            <button class="w-full p-3 bg-red-600 hover:bg-red-500 rounded-lg font-semibold">Logout</button>
-        </form>
-    </aside>
+        $user = $session->get('user');
 
-    <!-- Main Content -->
-    <main class="ml-64 p-10">
-        <h1 class="text-3xl font-bold text-green-900">Dashboard Overview</h1>
-        <p class="text-gray-600 mt-2">Welcome to your admin dashboard.</p>
+        // User authenticated but not a manager - show 403 Forbidden error
+        if (!isset($user['type']) || $user['type'] !== 'admin') {
+            return $this->show403Error('Access denied: Admin role required to access admin pages.');
+        }
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-            <div class="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-                <h2 class="text-xl font-semibold text-gray-700">Total Users</h2>
-                <p class="mt-4 text-4xl font-bold text-green-800">128</p>
-            </div>
+        // Access granted - return null to continue execution
+        return null;
+    }
 
-            <div class="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-                <h2 class="text-xl font-semibold text-gray-700">Monthly Inquiries</h2>
-                <p class="mt-4 text-4xl font-bold text-green-800">56</p>
-            </div>
+    /**
+     * Show 403 Forbidden Error Page
+     *
+     * Displays a custom 403 error page for unauthorized access attempts.
+     * This provides better UX than redirecting to login for authenticated users.
+     *
+     * @param string $message The error message to display
+     * @return string The rendered 403 error view
+     */
+    private function show403Error(string $message = 'Access Forbidden'): string
+    {
+        // Set HTTP status code to 403
+        $this->response->setStatusCode(403);
 
-            <div class="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-                <h2 class="text-xl font-semibold text-gray-700">Active Staff</h2>
-                <p class="mt-4 text-4xl font-bold text-green-800">7</p>
-            </div>
-        </div>
+        // Render the 403 error view with custom message
+        return view('errors/html/error_403', ['message' => $message]);
+    }
 
-        <div class="mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Latest Inquiries</h2>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-100 border-b">
-                        <th class="p-3">Name</th>
-                        <th class="p-3">Email</th>
-                        <th class="p-3">Date</th>
-                        <th class="p-3">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="border-b">
-                        <td class="p-3">Juan Dela Cruz</td>
-                        <td class="p-3">juan@example.com</td>
-                        <td class="p-3">2025-11-17</td>
-                        <td class="p-3"><span class="px-3 py-1 bg-yellow-200 text-yellow-800 rounded-full text-sm">Pending</span></td>
-                    </tr>
-                    <tr class="border-b">
-                        <td class="p-3">Maria Santos</td>
-                        <td class="p-3">maria@example.com</td>
-                        <td class="p-3">2025-11-17</td>
-                        <td class="p-3"><span class="px-3 py-1 bg-green-200 text-green-800 rounded-full text-sm">Answered</span></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </main>
-</body>
+    /**
+     * Display Admin Dashboard
+     *
+     * GET /admin/dashboard
+     * Shows the administrative dashboard with system statistics and management tools.
+     * Requires admin authentication.
+     */
+    public function showDashboard()
+    {
+        // Enforce admin-only access using role-based authorization
+        $accessCheck = $this->checkAdminAccess();
+        if ($accessCheck !== null) {
+            return $accessCheck; // Return 403 error view if access denied
+        }
 
-</html>
+        try {
+            $usersModel = new UsersModel();
+
+            // Count active client accounts (status = 1)
+            $activeClientsCount = $usersModel->where('type', 'client')->where('account_status', 1)->countAllResults();
+        } catch (\Exception $error) {
+            // Handle database errors gracefully
+            $activeClientsCount = "Server Issue: " . $error;
+        }
+
+        // Render admin dashboard with statistics
+        return view('admin/adminDashboard');
+    }
+}
